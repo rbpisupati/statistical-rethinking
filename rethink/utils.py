@@ -8,7 +8,7 @@ from pyro.infer import Predictive
 from pyro.infer.mcmc import NUTS, MCMC
 from pyro import poutine
 import torch
-import torch.tensor as tt
+from torch import tensor as tt 
 
 ### Sample summarization and interval calculation
 

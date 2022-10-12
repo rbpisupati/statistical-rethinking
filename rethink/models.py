@@ -1,5 +1,5 @@
 import tqdm
-import torch.tensor as tt
+from torch import tensor as tt 
 import pyro
 from pyro.infer import SVI, Trace_ELBO
 import pyro.infer.autoguide
