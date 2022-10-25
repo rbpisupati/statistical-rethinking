@@ -1,11 +1,11 @@
 import tqdm
+import torch
 from torch import tensor as tt 
 import pyro
 from pyro.infer import SVI, Trace_ELBO, Predictive
 import pyro.infer.autoguide
 from pyro.infer.autoguide import AutoMultivariateNormal, AutoDiagonalNormal, init_to_mean,  AutoLaplaceApproximation
 from pyro.optim import Adam
-
 import pandas as pd
 
 class Inputs(object):
@@ -22,6 +22,12 @@ class Inputs(object):
             self.params[f"{ef_col}_mean"] = self.raw_df[self._key_dict[ef_col]].mean()
             self.params[f"{ef_col}_std"] = self.raw_df[self._key_dict[ef_col]].values.std()
             self.df[ef_col] = self._standardize( ef_col )
+
+    def get_val(self, var, category = False):
+        if category:
+            return( tt(self.df.loc[:,var].values).long() )
+        else:
+            return( tt(self.df.loc[:,var].values).double() )
             
     def _standardize(self, name):
         return (self.raw_df[self._key_dict[name]].values - self.params[f"{name}_mean"])/self.params[f"{name}_std"]
@@ -31,16 +37,31 @@ class Inputs(object):
 
 
 class RegressionBase:
-    def __init__(self, df, categoricals=None):
-        if categoricals is None:
-            categoricals = []
-        for col in set(df.columns) - set(categoricals):
-            setattr(self, col, tt(df[col].values).double())
-        for col in categoricals:
-            setattr(self, col, tt(df[col].values).long())
+    def __init__(self, X, Y, name = ''):
+        self.name = name
+        self.X = X
+        self.Y = Y
+        # if categoricals is None:
+        #     categoricals = []
+        # for col in set(df.columns) - set(categoricals):
+        #     setattr(self, col, tt(df[col].values).double())
+        # for col in categoricals:
+        #     setattr(self, col, tt(df[col].values).long())
             
-    def __call__(self):
-        raise NotImplementedError
+    def __call__(self, x=None):
+        """
+        Simple regression model for X and Y
+        """
+        a = pyro.sample("a", pyro.distributions.Normal(*tt((0., 0.2))))
+        bX = pyro.sample("bX", pyro.distributions.Normal(*tt((0., 0.5))))
+        sigma = pyro.sample("sigma", pyro.distributions.Exponential(tt(1.)))
+        if x is None:
+            mu = pyro.deterministic("mu", a + bX * self.X)
+            with pyro.plate("data"):
+                pyro.sample("Y", pyro.distributions.Normal(mu, sigma), obs=self.Y)
+        else:
+            mu = pyro.deterministic("mu", a + bX * x)
+            return(pyro.sample('Y', pyro.distributions.Normal(mu, sigma) ) )
         
     def train(self, num_steps, lr=1e-2, restart=True, autoguide=None, use_tqdm=False):
         if restart:
@@ -60,4 +81,14 @@ class RegressionBase:
             loss.append(svi.step())
         return loss
 
-    
+    def sample_prior(self, num_samples = 1000, sites=None):
+        return {
+            k: v.detach().numpy()
+            for k, v in Predictive(
+                self,
+                {},
+                return_sites=sites,
+                num_samples=num_samples
+            )().items()
+        }
+

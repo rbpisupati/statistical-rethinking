@@ -121,7 +121,10 @@ def marginal_independencies(G):
                 pass
     return tuples
 
-def sample_posterior(model, num_samples, sites=None, data=None):
+def sample_posterior(model, num_samples = 1000, sites=None, data=None):
+    """
+    Simple function to get the posterior samples
+    """
     p = Predictive(
         model,
         guide=model.guide,
@@ -134,27 +137,20 @@ def sample_posterior(model, num_samples, sites=None, data=None):
         p = p(data)
     return {k: v.detach().numpy() for k, v in p.items()}
 
-def sample_prior(model, num_samples, sites=None):
-    return {
-        k: v.detach().numpy()
-        for k, v in Predictive(
-            model,
-            {},
-            return_sites=sites,
-            num_samples=num_samples
-        )().items()
-    }
-
-def plot_intervals(samples, p):
-    for i, (k, s) in enumerate(samples.items()):
+def plot_intervals(samples, estimate_ids, p = 0.89):
+    """
+    Plot coefficients from the posterior density intervals
+    """
+    for i, k in enumerate(estimate_ids):
+        s = samples[k]
         mean = s.mean()
         hpdi = HPDI(s, p)
         plt.scatter([mean], [i], facecolor="none", edgecolor="black")
         plt.plot(hpdi, [i, i], color="C0")
         plt.axhline(i, color="grey", alpha=0.5, linestyle="--")
-    plt.yticks(range(len(samples)), samples.keys(), fontsize=15)
+    plt.yticks(range(len(estimate_ids)), estimate_ids, fontsize=15)
     plt.axvline(0, color="black", alpha=0.5, linestyle="--")
-    
+
     
 def WAIC(model, x, y, out_var_nm, num_samples=100):
     p = torch.zeros((num_samples, len(y)))
